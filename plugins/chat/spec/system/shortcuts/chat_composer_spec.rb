@@ -7,8 +7,6 @@ RSpec.describe "Shortcuts | chat composer", type: :system, js: true do
   let(:chat) { PageObjects::Pages::Chat.new }
   let(:channel_page) { PageObjects::Pages::ChatChannel.new }
 
-  KEY_MODIFIER = RUBY_PLATFORM =~ /darwin/i ? :meta : :control
-
   before do
     chat_system_bootstrap
     channel_1.add(current_user)

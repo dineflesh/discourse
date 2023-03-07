@@ -12,8 +12,6 @@ RSpec.describe "Channel selector modal", type: :system, js: true do
     visit("/")
   end
 
-  KEY_MODIFIER = RUBY_PLATFORM =~ /darwin/i ? :meta : :control
-
   context "when used with public channel" do
     fab!(:channel_1) { Fabricate(:category_channel) }
 

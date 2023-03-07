@@ -2,6 +2,8 @@
 
 require "faker"
 
+KEY_MODIFIER = RUBY_PLATFORM =~ /darwin/i ? :meta : :control
+
 module ChatSystemHelpers
   def chat_system_bootstrap(user = Fabricate(:admin), channels_for_membership = [])
     # ensures we have one valid registered admin/user
