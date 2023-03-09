@@ -115,6 +115,7 @@ export default class ChatLivePane extends Component {
   @action
   loadMessages() {
     if (!this.args.channel?.id) {
+      this.loadedOnce = true;
       return;
     }
 
@@ -424,7 +425,6 @@ export default class ChatLivePane extends Component {
   @action
   didShowMessage(message) {
     message.visible = true;
-    this.updateLastReadMessage(message);
   }
 
   @action
@@ -440,12 +440,33 @@ export default class ChatLivePane extends Component {
 
     const lastReadId =
       this.args.channel.currentUserMembership?.last_read_message_id;
-    const lastUnreadVisibleMessage = this.args.channel.visibleMessages.findLast(
+    let lastUnreadVisibleMessage = this.args.channel.visibleMessages.findLast(
       (message) => !lastReadId || message.id > lastReadId
     );
-    if (lastUnreadVisibleMessage) {
-      this.args.channel.updateLastReadMessage(lastUnreadVisibleMessage.id);
+
+    // all intersecting messages are read
+    if (!lastUnreadVisibleMessage) {
+      return;
     }
+
+    const element = this._scrollerEl.querySelector(
+      `[data-id='${lastUnreadVisibleMessage.id}']`
+    );
+
+    // if the last visible message is not fully visible, we don't want to mark it as read
+    // attempt to mark previous one as read
+    if (!this.#isBottomOfMessageVisible(element, this._scrollerEl)) {
+      lastUnreadVisibleMessage = lastUnreadVisibleMessage.previousMessage;
+
+      if (
+        !lastUnreadVisibleMessage &&
+        lastReadId > lastUnreadVisibleMessage.id
+      ) {
+        return;
+      }
+    }
+
+    this.args.channel.updateLastReadMessage(lastUnreadVisibleMessage.id);
   }
 
   @action
@@ -501,6 +522,8 @@ export default class ChatLivePane extends Component {
     if (this.isAtBottom) {
       this.hasNewMessages = false;
     }
+
+    this.updateLastReadMessage();
   }
 
   _isBetween(target, a, b) {
@@ -516,7 +539,8 @@ export default class ChatLivePane extends Component {
     }
   }
 
-  handleMessage(data) {
+  @bind
+  onMessage(data) {
     switch (data.type) {
       case "sent":
         this.handleSentMessage(data);
@@ -554,29 +578,26 @@ export default class ChatLivePane extends Component {
     }
   }
 
-  _handleOwnSentMessage(data) {
-    const stagedMessage = this.args.channel.findStagedMessage(data.staged_id);
-    if (stagedMessage) {
-      stagedMessage.error = null;
-      stagedMessage.id = data.chat_message.id;
-      stagedMessage.staged = false;
-      stagedMessage.excerpt = data.chat_message.excerpt;
-      stagedMessage.threadId = data.chat_message.thread_id;
-      stagedMessage.channelId = data.chat_message.chat_channel_id;
-      stagedMessage.createdAt = data.chat_message.created_at;
+  _handleStagedMessage(stagedMessage, data) {
+    stagedMessage.error = null;
+    stagedMessage.id = data.chat_message.id;
+    stagedMessage.staged = false;
+    stagedMessage.excerpt = data.chat_message.excerpt;
+    stagedMessage.threadId = data.chat_message.thread_id;
+    stagedMessage.channelId = data.chat_message.chat_channel_id;
+    stagedMessage.createdAt = data.chat_message.created_at;
 
-      const inReplyToMsg = this.args.channel.findMessage(
-        data.chat_message.in_reply_to?.id
-      );
-      if (inReplyToMsg && !inReplyToMsg.threadId) {
-        inReplyToMsg.threadId = data.chat_message.thread_id;
-      }
+    const inReplyToMsg = this.args.channel.findMessage(
+      data.chat_message.in_reply_to?.id
+    );
+    if (inReplyToMsg && !inReplyToMsg.threadId) {
+      inReplyToMsg.threadId = data.chat_message.thread_id;
+    }
 
-      // some markdown is cooked differently on the server-side, e.g.
-      // quotes, avatar images etc.
-      if (data.chat_message?.cooked !== stagedMessage.cooked) {
-        stagedMessage.cooked = data.chat_message.cooked;
-      }
+    // some markdown is cooked differently on the server-side, e.g.
+    // quotes, avatar images etc.
+    if (data.chat_message?.cooked !== stagedMessage.cooked) {
+      stagedMessage.cooked = data.chat_message.cooked;
     }
   }
 
@@ -586,7 +607,10 @@ export default class ChatLivePane extends Component {
     }
 
     if (data.chat_message.user.id === this.currentUser.id && data.staged_id) {
-      return this._handleOwnSentMessage(data);
+      const stagedMessage = this.args.channel.findStagedMessage(data.staged_id);
+      if (stagedMessage) {
+        return this._handleStagedMessage(stagedMessage, data);
+      }
     }
 
     if (this.args.channel.canLoadMoreFuture) {
@@ -1138,13 +1162,6 @@ export default class ChatLivePane extends Component {
   }
 
   @bind
-  onMessage(busData) {
-    if (!this.args.channel.canLoadMoreFuture || busData.type !== "sent") {
-      this.handleMessage(busData);
-    }
-  }
-
-  @bind
   _forceBodyScroll() {
     // when keyboard is visible this will ensure body
     // doesn’t scroll out of viewport
@@ -1271,5 +1288,11 @@ export default class ChatLivePane extends Component {
           item.date.style.top = item.top;
         });
     });
+  }
+
+  #isBottomOfMessageVisible(element, container) {
+    const rect = element.getBoundingClientRect();
+    const containerRect = container.getBoundingClientRect();
+    return rect.bottom <= containerRect.bottom;
   }
 }
