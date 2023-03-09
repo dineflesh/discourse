@@ -227,6 +227,7 @@ after_initialize do
   load File.expand_path("../app/services/lookup_thread.rb", __FILE__)
   load File.expand_path("../app/controllers/api_controller.rb", __FILE__)
   load File.expand_path("../app/controllers/api/chat_channels_controller.rb", __FILE__)
+  load File.expand_path("../app/controllers/api/chat_tracking_controller.rb", __FILE__)
   load File.expand_path("../app/controllers/api/chat_current_user_channels_controller.rb", __FILE__)
   load File.expand_path(
          "../app/controllers/api/chat_channels_current_user_membership_controller.rb",
@@ -615,6 +616,7 @@ after_initialize do
       post "/channels/:channel_id/memberships/me" => "chat_channels_current_user_membership#create"
       put "/channels/:channel_id/notifications-settings/me" =>
             "chat_channels_current_user_notifications_settings#update"
+      put "/tracking/read/me" => "chat_tracking#read"
 
       # Category chatables controller hints. Only used by staff members, we don't want to leak category permissions.
       get "/category-chatables/:id/permissions" => "category_chatables#permissions",

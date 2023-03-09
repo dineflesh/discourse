@@ -160,39 +160,14 @@ class Chat::ChatController < Chat::ChatBaseController
   end
 
   def update_user_last_read
-    membership =
-      Chat::ChatChannelMembershipManager.new(@chat_channel).find_for_user(
-        current_user,
-        following: true,
-      )
-    raise Discourse::NotFound if membership.nil?
-
-    if membership.last_read_message_id && params[:message_id].to_i < membership.last_read_message_id
-      raise Discourse::InvalidParameters.new(:message_id)
+    with_service(Chat::Service::UpdateUserLastRead, channel_id: params[:chat_channel_id]) do
+      on_failed_policy(:ensure_message_id_recency) do
+        raise Discourse::InvalidParameters.new(:message_id)
+      end
+      on_failed_policy(:ensure_message_exists) { raise Discourse::NotFound }
+      on_model_not_found(:active_membership) { raise Discourse::NotFound }
+      on_model_not_found(:channel) { raise Discourse::NotFound }
     end
-
-    unless ChatMessage.with_deleted.exists?(
-             chat_channel_id: @chat_channel.id,
-             id: params[:message_id],
-           )
-      raise Discourse::NotFound
-    end
-
-    membership.update!(last_read_message_id: params[:message_id])
-
-    Notification
-      .where(notification_type: Notification.types[:chat_mention])
-      .where(user: current_user)
-      .where(read: false)
-      .joins("INNER JOIN chat_mentions ON chat_mentions.notification_id = notifications.id")
-      .joins("INNER JOIN chat_messages ON chat_mentions.chat_message_id = chat_messages.id")
-      .where("chat_messages.id <= ?", params[:message_id].to_i)
-      .where("chat_messages.chat_channel_id = ?", @chat_channel.id)
-      .update_all(read: true)
-
-    ChatPublisher.publish_user_tracking_state(current_user, @chat_channel.id, params[:message_id])
-
-    render json: success_json
   end
 
   def messages
