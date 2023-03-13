@@ -153,22 +153,21 @@ export default class TopicTimelineScrollArea extends Component {
     return this.lastReadTop > bottom ? bottom : this.lastReadTop;
   }
 
-  get bottomAge() {
-    return relativeAge(
-      new Date(this.args.model.last_posted_at || this.args.model.created_at),
-      {
-        addAgo: true,
-        defaultFormat: timelineDate,
-      }
-    );
-  }
-
   get startDate() {
     return timelineDate(this.args.model.createdAt);
   }
 
+  get nowDateOptions() {
+    return {
+      addAgo: true,
+      defaultFormat: timelineDate,
+    };
+  }
+
   get nowDate() {
-    return this.bottomAge;
+    return (
+      this.args.model.get("last_posted_at") || this.args.model.get("created_at")
+    );
   }
 
   get lastReadHeight() {
